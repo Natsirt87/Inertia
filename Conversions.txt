@@ -1,0 +1,19 @@
+UNITS
+
+Distance:
+1 pixel = 20 mm = 0.02 m
+
+Velocity:
+1 pixel/second = 0.02 m/s = 0.04473873 mph
+
+Force:
+1 unit F = 0.02 N
+
+Inertia:
+1 kg/m^2 = 0.0004 kg/px^2
+1 kg/px^2 = 2500 kg/m^2
+
+aa = 0.2347469329834 rad/s^2
+I = 2129968.47934439
+
+T = I * aa

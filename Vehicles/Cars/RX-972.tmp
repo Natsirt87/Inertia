@@ -1,0 +1,91 @@
+[gd_scene load_steps=7 format=3 uid="uid://xlpphold73pn"]
+
+[ext_resource type="Texture2D" uid="uid://qj7wrjwk7cta" path="res://Sprites/Misc/wheel.png" id="1_aja0r"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/Vehicle.gd" id="1_j4qjg"]
+[ext_resource type="Texture2D" uid="uid://dudjudt77tuie" path="res://Sprites/Cars/RX-7/RX-7_1.png" id="2_xelaq"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/Wheel.gd" id="4_0fnvn"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/VehicleSprite.gd" id="4_flpgr"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_karj6"]
+radius = 22.2222
+height = 144.444
+
+[node name="RX-7" type="RigidBody2D"]
+mass = 1250.0
+center_of_mass_mode = 1
+gravity_scale = 0.0
+continuous_cd = 2
+script = ExtResource("1_j4qjg")
+steering_speed = 0.1
+engine_force = 8000.0
+
+[node name="Collision" type="CollisionPolygon2D" parent="."]
+scale = Vector2(0.42, 0.42)
+polygon = PackedVector2Array(-86, -263, -1, -269, 85, -264, 104, -256, 112, -247, 118, -234, 118, -197, 127, -183, 128, -96, 124, -87, 120, -83, 120, 78, 128, 94, 128, 179, 125, 187, 119, 191, 118, 228, 111, 241, 97, 246, -93, 246, -107, 242, -117, 231, -118, 194, -127, 179, -127, 97, -125, 87, -119, 80, -119, -85, -128, -98, -127, -180, -124, -189, -118, -197, -117, -233, -113, -244, -107, -252, -100, -259)
+
+[node name="VehicleSprite" type="Sprite2D" parent="Collision"]
+position = Vector2(-1, 0)
+texture = ExtResource("2_xelaq")
+script = ExtResource("4_flpgr")
+rotate_speed = 0.1
+
+[node name="Wheels" type="Node2D" parent="Collision"]
+z_index = -1
+
+[node name="FrontLeft" type="Area2D" parent="Collision/Wheels"]
+position = Vector2(-112, -138)
+scale = Vector2(0.72, 0.72)
+script = ExtResource("4_0fnvn")
+steering = true
+max_steering_angle = 20.0
+
+[node name="WheelSprite" type="Sprite2D" parent="Collision/Wheels/FrontLeft"]
+texture = ExtResource("1_aja0r")
+
+[node name="Collision" type="CollisionShape2D" parent="Collision/Wheels/FrontLeft"]
+visible = false
+shape = SubResource("CapsuleShape2D_karj6")
+
+[node name="FrontRight" type="Area2D" parent="Collision/Wheels"]
+position = Vector2(112, -138)
+scale = Vector2(0.72, 0.72)
+script = ExtResource("4_0fnvn")
+steering = true
+max_steering_angle = 20.0
+
+[node name="WheelSprite" type="Sprite2D" parent="Collision/Wheels/FrontRight"]
+texture = ExtResource("1_aja0r")
+
+[node name="Collision" type="CollisionShape2D" parent="Collision/Wheels/FrontRight"]
+visible = false
+shape = SubResource("CapsuleShape2D_karj6")
+
+[node name="BackLeft" type="Area2D" parent="Collision/Wheels"]
+position = Vector2(-112, 138)
+scale = Vector2(0.72, 0.72)
+script = ExtResource("4_0fnvn")
+torque_ratio = 0.5
+static_friction = 1.0
+dynamic_friction = 0.7
+
+[node name="WheelSprite" type="Sprite2D" parent="Collision/Wheels/BackLeft"]
+texture = ExtResource("1_aja0r")
+
+[node name="Collision" type="CollisionShape2D" parent="Collision/Wheels/BackLeft"]
+visible = false
+shape = SubResource("CapsuleShape2D_karj6")
+
+[node name="BackRight" type="Area2D" parent="Collision/Wheels"]
+position = Vector2(112, 138)
+scale = Vector2(0.72, 0.72)
+script = ExtResource("4_0fnvn")
+torque_ratio = 0.5
+static_friction = 1.0
+dynamic_friction = 0.7
+
+[node name="WheelSprite" type="Sprite2D" parent="Collision/Wheels/BackRight"]
+texture = ExtResource("1_aja0r")
+
+[node name="Collision" type="CollisionShape2D" parent="Collision/Wheels/BackRight"]
+visible = false
+shape = SubResource("CapsuleShape2D_karj6")

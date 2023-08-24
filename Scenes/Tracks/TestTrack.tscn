@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://dm7rnuix0r30j"]
+
+[ext_resource type="Texture2D" uid="uid://bcu6r4oba4xdu" path="res://Scenes/Tracks/Track1.png" id="1_rlh5g"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/PlayerController.gd" id="2_vo73b"]
+
+[node name="Root" type="Node2D"]
+
+[node name="TrackSprite" type="Sprite2D" parent="."]
+z_index = -3
+texture = ExtResource("1_rlh5g")
+
+[node name="PlayerController" type="Node2D" parent="."]
+position = Vector2(-3769, 5297)
+rotation = 1.5708
+script = ExtResource("2_vo73b")
+vehicle_name = "RX-7"
