@@ -4,10 +4,12 @@ extends Area2D
 # constants
 var LOW_SPEED_THRESHOLD: float = 2.5
 var COUNTER_STEER_GAIN: float = 1.2
+var COUNTER_STEER_SPEED: float = 0.1
+var CENTERING_SPEED: float = 0.08
 
 # Export variables
 @export var front: bool
-@export var right: bool
+@export var left: bool
 @export var steering: bool
 @export var max_steering_angle: float
 @export var torque_ratio: float # Ratio of engine torque sent to this wheel
@@ -19,6 +21,7 @@ var COUNTER_STEER_GAIN: float = 1.2
 
 # Public variables 
 var slip_angle: float = 0
+var tire_load: float
 
 # Private variables
 var _throttle_input: float = 0
@@ -63,7 +66,7 @@ func _physics_process(delta):
 	
 	_desired_force = Vector2(0, 0)
 	
-	var tire_load = _vehicle.mass * 0.25 * 9.81 # Total load (weight) pushing on the tire
+	tire_load = _get_tire_load() # Total load (weight) pushing on the tire
 	var max_force = max_friction * tire_load # Maximum possible force the tire could exert
 	var available_force = _friction_coefficient * tire_load # Available force in current conditions
 	
@@ -78,34 +81,53 @@ func _physics_process(delta):
 	# Calculate the actual applied force
 	var applied_force: Vector2
 	# Determine if the grip of the tire is being exceeded, and change the friction accordingly
-	if _desired_force.length() > available_force:
-		_friction_coefficient = min_friction
+	var force_diff = _desired_force.length() - available_force
+	if force_diff > 0:
+		if force_diff > 0.1:
+			_friction_coefficient = min_friction
 		
 		# Tire is exceeding maximum grip, so applied force must be adjusted
-		applied_force = _desired_force.normalized() * tire_load * _friction_coefficient
+		applied_force = _desired_force.normalized() * tire_load * min_friction
+		if front and not _vehicle.oversteering:
+			pass
 	else:
+		if front:
+			pass
 		_friction_coefficient = max_friction
 		applied_force = _desired_force
 	
 	# Apply the net wheel force to the vehicle
 	_vehicle.apply_wheel_force(applied_force, _wheel_offset)
 
-func _get_sliding_friction(desired, max):
-	if (desired <= max):
-		return desired
+func _get_tire_load():
+	var opp_axle_distance = _vehicle.rear_axle_dist if front else _vehicle.front_axle_dist
+	var weight = _vehicle.mass * 9.81
 	
-	var input = (desired / max) - 1
-	var friction = 1 - ((1 - min_friction) / traction_falloff) * input
-	return friction
+	var long_accel = _vehicle.acceleration.dot(_vehicle._forward)
+	var lat_accel = _vehicle.acceleration.dot(_vehicle._right)
+	
+	var stationary_load = ((opp_axle_distance / _vehicle.wheelbase) / 2) * weight
+	
+	var long_load = (_vehicle.cg_height / _vehicle.wheelbase) * _vehicle.mass * long_accel
+	var lat_load = (_vehicle.cg_height / _vehicle.track_width) * _vehicle.mass * lat_accel
+	if (front): long_load *= -1
+	if (not left): lat_load *= -1
+	
+	var total_load = stationary_load + long_load + lat_load
+	
+	return total_load
+
+# Steers the wheel if it is steerable
 
 func _steer(delta):
-	var speed = _linear_velocity.dot(_forward)
+	var steering_angle = rotation_degrees
+	var speed = Utility.p_to_m(_vehicle.linear_velocity.dot(_forward))
+	var steering_speed = _vehicle.steering_speed * delta
+	
 	# Low speed steering to avoid instability
 	if abs(speed) < LOW_SPEED_THRESHOLD:
 		var desired_angle = _steering_input * max_steering_angle
-		var steering_angle = lerp(rotation_degrees, desired_angle, _vehicle.steering_speed * delta * 0.1)
-
-		rotation_degrees = steering_angle
+		steering_angle = lerp(rotation_degrees, desired_angle, steering_speed * 0.1)
 
 	# Reverse steering 
 	elif speed < 0:
@@ -113,44 +135,41 @@ func _steer(delta):
 		var B = 2
 		var C = 5
 		var speed_sens = 1 * B/ ((_linear_velocity.length() - LOW_SPEED_THRESHOLD + 1) * C)
-		var steering_angle = lerp(rotation_degrees, desired_angle, _vehicle.steering_speed * delta * speed_sens)
-
-		rotation_degrees = steering_angle
-
+		steering_angle = lerp(rotation_degrees, desired_angle, steering_speed * speed_sens)
+	
+	# Oversteer/drift steering
+	elif _vehicle.oversteering:
+		var desired_angle = _steering_input * max_steering_angle
+		steering_angle = lerp(rotation_degrees, desired_angle, steering_speed * COUNTER_STEER_SPEED)
+	
 	# Forward steering
 	else:
-		var steering_angle = rotation_degrees
-		var desired_slip_angle = (_steering_input * (peak_tire_slip - 0.2))
-
-		var counter_steer = 0.3
-		var counter_steer_sensitivity = 1
+		var max_slip = (peak_tire_slip * (_friction_coefficient / max_friction)) - _vehicle.understeer_prevention
+		var desired_slip_angle = (_steering_input * max_slip)
 		
-		var speed_sens = _vehicle.speed_sensitivity.sample(abs(speed) / 100)
+		# If the current wheel is sliding or rears are not about to slide, get max angle out of this wheel
+		var cur_slip
+		if abs(slip_angle) >= max_slip or _vehicle.rear_slip_angle < max_slip - _vehicle.oversteer_prevention:
+			cur_slip = slip_angle
+		# If rears are at the limit and this wheel isn't sliding, get max angle out of the rears (prevent oversteer)
+		else:
+			cur_slip = _vehicle.rear_slip_angle
 		
-		if _vehicle.oversteering:
-			var neutral_v_lat = _linear_velocity.dot(_vehicle._right)
-			var neutral_v_long = _linear_velocity.dot(_vehicle._forward)
-			var neutral_slip_angle = rad_to_deg(-atan2(neutral_v_lat, neutral_v_long))
-#			if (sign(desired_slip_angle) != sign(neutral_slip_angle)):
-#				desired_slip_angle *= COUNTER_STEER_GAIN
-			desired_slip_angle *= COUNTER_STEER_GAIN
-			desired_slip_angle += neutral_slip_angle * counter_steer
+		if abs(_steering_input) < 0.01:
+			steering_angle = lerp(steering_angle, 0.0, steering_speed * CENTERING_SPEED)
+		else:
+			var p_gain = steering_speed
+			var d_gain = 0.1 * delta
 			
-			counter_steer_sensitivity *= 3
+			var p = p_gain * (desired_slip_angle - cur_slip)
+			
+			var value_delta = (cur_slip - _last_slip_angle) / delta
+			_last_slip_angle = cur_slip
+			var d = d_gain * -value_delta
+			
+			steering_angle += p + d
 		
-		var p_gain = _vehicle.steering_speed * speed_sens * delta * counter_steer_sensitivity
-		var d_gain = 0.02 * delta
-		
-		var error = desired_slip_angle - slip_angle
-		var p = p_gain * error
-		
-		var value_delta = (slip_angle - _last_slip_angle) / delta
-		_last_slip_angle = slip_angle
-		var d = d_gain * -value_delta
-		
-		steering_angle += p + d
-		
-		rotation_degrees = clamp(steering_angle, -max_steering_angle, max_steering_angle)
+	rotation_degrees = clamp(steering_angle, -max_steering_angle, max_steering_angle)
 
 
 func _lateral_forces(max_force, delta):
