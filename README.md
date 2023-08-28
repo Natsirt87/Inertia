@@ -7,7 +7,9 @@ I’m envisioning 5 primary components as the pillars of the gameplay, in order 
 
 ## Physics
 Realistic: uses real equations & simulates certain aspects in a 3D way
+
 Fun and responsive: should feel fast, quick to react, enjoyable to just drive around
+
 Extensible & organized: code should be clear, concise, well commented and easy to change
 
 ## Multiplayer
