@@ -5,12 +5,12 @@ extends RigidBody2D
 var MAX_SPEED = 100
 
 # Exports
-@export var steering_speed : float
+@export var steering_speed : float = 0.5
 @export var engine_force : float
 @export var wheelbase : float
 @export var track_width : float
 @export var cg_height : float
-@export var understeer_prevention: float = 0.4
+@export var understeer_prevention: float = 0.3
 @export var oversteer_prevention: float = 0.2
 
 # Public variables
