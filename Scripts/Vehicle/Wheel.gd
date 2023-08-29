@@ -17,9 +17,13 @@ var STEERING_DERIVATIVE: float = 0.1
 @export var torque_ratio: float # Ratio of engine torque sent to this wheel
 @export var max_friction: float = 1.1 # Maximum tire friction coefficient, not sliding
 @export var min_friction: float = 0.8 # Minimum tire friction coefficient, maximum slip
+@export var radius: float = 30 # Effective radius of the tire
+@export var mass: float = 70 #mass of the wheel & tire
 @export var traction_falloff: float = 2 # How quickly traction falls of, higher number = slower
 @export var traction_constant: float = 0.1666 # How much force is generated for slip ratio
 @export var peak_tire_slip: float = 3 # How much force is generated for slip angle
+@export var peak_slip_ratio: float = 1 # Slip ratio value for peak generated grip
+
 
 # Public variables 
 var slip_angle: float = 0
@@ -32,6 +36,7 @@ var _steering_input: float = 0
 var _vehicle: Vehicle
 
 var _desired_force: Vector2 = Vector2.ZERO
+var _total_torque: float = 0
 var _traction_force: float = 0
 var _cornering_force: float = 0
 var _friction_coefficient: float = 0
@@ -40,6 +45,8 @@ var _linear_velocity: Vector2 = Vector2.ZERO
 var _last_velocity: Vector2 = Vector2.ZERO
 var _linear_accel: Vector2 = Vector2.ZERO
 var _wheel_offset: Vector2
+var _angular_velocity: float = 0
+
 
 var _last_slip_angle: float = 0
 
@@ -75,18 +82,17 @@ func _physics_process(delta):
 	if _vehicle:
 		if steering:
 			_steer(delta)
-		if torque_ratio > 0:
-			_drive(available_force)
+	
+		_longitudinal_forces(max_force, delta)
 		_lateral_forces(max_force, delta)
-		_brake(max_force)
+		#_brake(max_force)
 	
 	# Calculate the actual applied force
 	var applied_force: Vector2
 	# Determine if the grip of the tire is being exceeded, and change the friction accordingly
 	var force_diff = _desired_force.length() - available_force
 	if force_diff > 0:
-		if force_diff > 0.1:
-			_friction_coefficient = min_friction
+		_friction_coefficient = min_friction
 		
 		# Tire is exceeding maximum grip, so applied force must be adjusted
 		applied_force = _desired_force.normalized() * tire_load * min_friction
@@ -94,6 +100,12 @@ func _physics_process(delta):
 		_friction_coefficient = max_friction
 		applied_force = _desired_force
 	
+#	var long_force = applied_force.dot(_forward)
+#	var traction_torque = long_force * radius
+#	_total_torque -= traction_torque
+#
+#	_update_angular_velocity(delta)
+
 	# Apply the net wheel force to the vehicle
 	_vehicle.apply_wheel_force(applied_force, _wheel_offset)
 
@@ -191,21 +203,41 @@ func _lateral_forces(max_force, delta):
 	_desired_force += lateral_force
 
 # Compute drive force acting through the tire
-func _drive(max_force):
+func _longitudinal_forces(max_force, delta):
 	# simple temporary approximation of driven wheel force
 	var max_drive_force = torque_ratio * _vehicle.engine_force
 	var drive_force = _forward * _throttle_input * max_drive_force
-	
-	_desired_force += drive_force
 
-# Compute brake force acting through the tire
-func _brake(available_force):
-	var remaining_force = clamp(available_force - _desired_force.length(), 0, available_force)
+	_desired_force += drive_force
+	
+	var remaining_force = clamp(max_force - _desired_force.length(), 0, max_force)
 	var max_braking_force = remaining_force * 0.99
 	var brake_force_magnitude = _brake_input * max_braking_force
 	var brake_force = -_linear_velocity.normalized() * brake_force_magnitude
-	#var brake_force = -sign(_linear_velocity.normalized().dot(_forward)) * brake_force_magnitude * _forward
+
 	_desired_force += brake_force
+
+#	var v_long = _linear_velocity.dot(_forward)
+#	var slip_ratio = ((_angular_velocity * radius) - v_long) - max(abs(v_long), 0.01)
+#
+#	var long_force = slip_ratio / peak_slip_ratio * 300
+#	long_force = min(long_force, max_force)
+#	_desired_force += long_force * _forward
+#
+#	var traction_torque = long_force * radius
+#
+#	var drive_torque = _vehicle.engine_force * radius * _throttle_input * torque_ratio
+#	var brake_torque = -_vehicle.engine_force * radius * _brake_input * sign(_angular_velocity)
+#	_total_torque += drive_torque + brake_torque - traction_torque
+#
+#	_update_angular_velocity(delta)
+#
+#	print(name + ": " + str(slip_ratio))
+
+func _update_angular_velocity(delta):
+	var inertia = mass * radius * radius / 2
+	var ang_accel = _total_torque / inertia
+	_angular_velocity += ang_accel * delta
 
 # Public functions
 func set_throttle_input(input: float):
