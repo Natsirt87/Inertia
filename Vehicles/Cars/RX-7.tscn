@@ -16,11 +16,13 @@ center_of_mass_mode = 1
 gravity_scale = 0.0
 continuous_cd = 2
 script = ExtResource("1_j4qjg")
-steering_speed = 1.0
+steering_speed = null
 engine_force = 6000.0
 wheelbase = 2.318
 track_width = 1.882
-cg_height = 0.3
+cg_height = 0.2
+understeer_prevention = null
+oversteer_prevention = null
 
 [node name="Body" type="CollisionPolygon2D" parent="."]
 scale = Vector2(0.42, 0.42)

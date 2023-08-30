@@ -16,8 +16,8 @@ var vehicle: Vehicle
 
 # TODO: Figure out how to imitate rotation of the sprite on X and Y axis (I know it's possible)
 func _physics_process(delta):
-	var long_accel = vehicle.acceleration.dot(vehicle._forward)
-	var lat_accel = vehicle.acceleration.dot(vehicle._right)
+	var long_accel = vehicle.acceleration.dot(vehicle.forward)
+	var lat_accel = vehicle.acceleration.dot(vehicle.right)
 	
 	rotate_x(lat_accel / max_lat_accel * angle_limit_x, delta)
 	rotate_y(long_accel / max_long_accel * angle_limit_y, delta)

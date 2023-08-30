@@ -32,8 +32,8 @@ var _front_wheels : Array
 var _rear_wheels : Array
 
 # On ready variables
-@onready var _forward : Vector2 = -global_transform.y.normalized()
-@onready var _right : Vector2 = global_transform.x.normalized()
+@onready var forward : Vector2 = -global_transform.y.normalized()
+@onready var right : Vector2 = global_transform.x.normalized()
 @onready var _wheels : Array = $Body/Wheels.get_children()
 
 # Called when the node enters the scene tree for the first time.
@@ -72,8 +72,8 @@ func _ready():
 
 func _physics_process(delta):
 	# Update unit vectors
-	_forward = -global_transform.y.normalized()
-	_right = global_transform.x.normalized()
+	forward = -global_transform.y.normalized()
+	right = global_transform.x.normalized()
 	
 	# Calculate acceleration in m/s^2
 	acceleration = Utility.p_to_m( (linear_velocity - _last_velocity) / delta )

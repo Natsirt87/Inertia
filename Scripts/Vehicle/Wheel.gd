@@ -8,6 +8,7 @@ var COUNTER_STEER_SPEED: float = 0.1
 var CENTERING_SPEED: float = 0.08
 var STEERING_FORCE: float = 60
 var STEERING_DERIVATIVE: float = 0.1
+var SLIP_RATIO_RELAXATION: float = 0.091
 
 # Export variables
 @export var front: bool
@@ -28,30 +29,28 @@ var STEERING_DERIVATIVE: float = 0.1
 # Public variables 
 var slip_angle: float = 0
 var tire_load: float
+var linear_velocity: Vector2 = Vector2.ZERO
+var angular_velocity: float = 0
+var linear_accel: Vector2 = Vector2.ZERO
 
 # Private variables
 var _throttle_input: float = 0
 var _brake_input: float = 0
 var _steering_input: float = 0
 var _vehicle: Vehicle
-
 var _desired_force: Vector2 = Vector2.ZERO
 var _total_torque: float = 0
 var _traction_force: float = 0
 var _cornering_force: float = 0
 var _friction_coefficient: float = 0
 var _last_position: Vector2
-var _linear_velocity: Vector2 = Vector2.ZERO
 var _last_velocity: Vector2 = Vector2.ZERO
-var _linear_accel: Vector2 = Vector2.ZERO
 var _wheel_offset: Vector2
-var _angular_velocity: float = 0
-
-
 var _last_slip_angle: float = 0
+var _diff_slip_ratio: float = 0
 
-@onready var _forward: Vector2 = -global_transform.y.normalized()
-@onready var _right: Vector2 = global_transform.x.normalized()
+@onready var forward: Vector2 = -global_transform.y.normalized()
+@onready var right: Vector2 = global_transform.x.normalized()
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -60,16 +59,16 @@ func _ready():
 
 func _physics_process(delta):
 	# Update unit vectors
-	_forward = global_transform.basis_xform(Vector2.UP).normalized()
-	_right = global_transform.basis_xform(Vector2.RIGHT).normalized()
+	forward = global_transform.basis_xform(Vector2.UP).normalized()
+	right = global_transform.basis_xform(Vector2.RIGHT).normalized()
 	
 	# Update linear velocity
-	_linear_velocity = Utility.p_to_m((global_position - _last_position) / delta)
+	linear_velocity = Utility.p_to_m((global_position - _last_position) / delta)
 	_last_position = global_position
 	
 	# Update linear acceleration
-	_linear_accel = (_linear_velocity - _last_velocity) / delta
-	_last_velocity = _linear_velocity
+	linear_accel = (linear_velocity - _last_velocity) / delta
+	_last_velocity = linear_velocity
 	
 	_wheel_offset = global_position - _vehicle.global_position
 	
@@ -102,7 +101,7 @@ func _physics_process(delta):
 		applied_force = _desired_force
 	
 	# Apply the traction torque to the wheel (torque from road on tire, opposing rotation)
-	var long_force = applied_force.dot(_forward)
+	var long_force = applied_force.dot(forward)
 	var traction_torque = long_force * radius
 	_total_torque -= traction_torque
 	
@@ -112,12 +111,17 @@ func _physics_process(delta):
 	# Apply the net wheel force to the vehicle
 	_vehicle.apply_wheel_force(applied_force, _wheel_offset)
 
+func _update_angular_velocity(delta):
+	var inertia = mass * radius * radius / 2
+	var ang_accel = _total_torque / inertia
+	angular_velocity += ang_accel * delta
+
 func _get_tire_load():
 	var opp_axle_distance = _vehicle.rear_axle_dist if front else _vehicle.front_axle_dist
 	var weight = _vehicle.mass * 9.81
 	
-	var long_accel = _vehicle.acceleration.dot(_vehicle._forward)
-	var lat_accel = _vehicle.acceleration.dot(_vehicle._right)
+	var long_accel = _vehicle.acceleration.dot(_vehicle.forward)
+	var lat_accel = _vehicle.acceleration.dot(_vehicle.right)
 	
 	var stationary_load = ((opp_axle_distance / _vehicle.wheelbase) / 2) * weight
 	
@@ -133,7 +137,7 @@ func _get_tire_load():
 # Steers the wheel if it is steerable
 func _steer(delta):
 	var steering_angle = rotation_degrees
-	var speed = Utility.p_to_m(_vehicle.linear_velocity.dot(_forward))
+	var speed = Utility.p_to_m(_vehicle.linear_velocity.dot(forward))
 	var steering_speed = _vehicle.steering_speed
 	
 	# Low speed steering to avoid instability
@@ -146,7 +150,7 @@ func _steer(delta):
 		var desired_angle = _steering_input * max_steering_angle
 		var B = 2
 		var C = 5
-		var speed_sens = 1 * B/ ((_linear_velocity.length() - LOW_SPEED_THRESHOLD + 1) * C)
+		var speed_sens = 1 * B/ ((linear_velocity.length() - LOW_SPEED_THRESHOLD + 1) * C)
 		steering_angle = lerp(rotation_degrees, desired_angle, steering_speed * speed_sens)
 	
 	# Oversteer/drift steering
@@ -184,15 +188,12 @@ func _steer(delta):
 	rotation_degrees = clamp(steering_angle, -max_steering_angle, max_steering_angle)
 
 func _pd_controller(p_gain: float, d_gain: float, error: float, diff: float):
-	var p = p_gain * error
-	var d = d_gain * -diff
-	
-	return p + d
+	return p_gain * error + d_gain * -diff
 
 # Compute all the lateral forces on the tire
 func _lateral_forces(max_force, delta):
-	var lateral_velocity = _linear_velocity.dot(_right)
-	var longitudinal_velocity = _linear_velocity.dot(_forward)
+	var lateral_velocity = linear_velocity.dot(right)
+	var longitudinal_velocity = linear_velocity.dot(forward)
 	
 	if longitudinal_velocity > LOW_SPEED_THRESHOLD:
 		slip_angle = rad_to_deg(-atan2(lateral_velocity, longitudinal_velocity))
@@ -201,25 +202,28 @@ func _lateral_forces(max_force, delta):
 		var low_speed_slip = rad_to_deg(-atan2(lateral_velocity, LOW_SPEED_THRESHOLD))
 		slip_angle = clamp(low_speed_slip, -max_slip_angle, max_slip_angle)
 	
-	var lateral_force = slip_angle * (1 / peak_tire_slip) * _right * max_force
+	var lateral_force = slip_angle * (1 / peak_tire_slip) * right * max_force
 	_desired_force += lateral_force
 
-# Compute drive force acting through the tire
+# Compute all longitudinal forces on the tire
 func _longitudinal_forces(max_force, delta):
-	var v_long = _linear_velocity.dot(_forward)
-	var slip_ratio = ((_angular_velocity * radius) - v_long) / max(abs(v_long), 0.001)
-
+	var v_long = linear_velocity.dot(forward)
+	var slip_ratio
+	
+	if v_long < 3:
+		var slip_delta = ((angular_velocity * radius) - v_long) - abs(v_long) * _diff_slip_ratio
+		slip_delta /= SLIP_RATIO_RELAXATION
+		_diff_slip_ratio += slip_delta * delta
+		slip_ratio = _diff_slip_ratio
+	else:
+		slip_ratio = ((angular_velocity * radius) - v_long) / max(abs(v_long), 0.001)
+	
 	var long_force = slip_ratio / peak_slip_ratio * max_force
-	_desired_force += long_force * _forward
+	_desired_force += long_force * forward
 
 	var drive_torque = _vehicle.engine_force * radius * _throttle_input * torque_ratio
-	var brake_torque = -_vehicle.engine_force * radius * _brake_input * sign(_angular_velocity)
+	var brake_torque = -_vehicle.engine_force * radius * _brake_input * sign(angular_velocity)
 	_total_torque += drive_torque + brake_torque
-
-func _update_angular_velocity(delta):
-	var inertia = mass * radius * radius / 2
-	var ang_accel = _total_torque / inertia
-	_angular_velocity += ang_accel * delta
 
 # Public functions
 func set_throttle_input(input: float):
