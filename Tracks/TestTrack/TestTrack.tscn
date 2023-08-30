@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://dglhtu485lvqm"]
+
+[ext_resource type="Script" path="res://Scripts/Vehicle/PlayerController.gd" id="1_frp4d"]
+[ext_resource type="Texture2D" uid="uid://bcu6r4oba4xdu" path="res://Tracks/TestTrack/TestTrack.png" id="2_5ulmd"]
+
+[node name="TestTrack" type="Node2D"]
+
+[node name="PlayerController" type="Node2D" parent="."]
+position = Vector2(-2721, 5538)
+script = ExtResource("1_frp4d")
+vehicle_name = "RX-7"
+
+[node name="TrackSprite" type="Sprite2D" parent="."]
+z_index = -2
+scale = Vector2(1.05, 1.05)
+texture = ExtResource("2_5ulmd")
