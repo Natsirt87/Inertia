@@ -1,5 +1,5 @@
 class_name PlayerController
-extends Node
+extends Node2D
 
 @export_enum("RX-7", "Alfa", "Mini") var vehicle_name : String
 
@@ -9,8 +9,7 @@ var vehicle : Vehicle
 func _ready():
 	create_vehicle();
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func _physics_process(delta):
 	if vehicle:
 		vehicle.set_throttle_input(Input.get_action_strength("accelerate"))
 		vehicle.set_brake_input(Input.get_action_strength("brake"))
@@ -18,9 +17,17 @@ func _process(delta):
 		var steer_left = Input.get_action_strength("steer_left")
 		var steer_right = Input.get_action_strength("steer_right")
 		vehicle.set_steering_input(steer_right - steer_left)
-
-func _physics_process(delta):
-	pass
+		
+		if Input.is_action_just_pressed("clutch_in"):
+			vehicle.set_clutch_in(true)
+		elif Input.is_action_just_released("clutch_in"):
+			vehicle.set_clutch_in(false)
+		
+		if Input.is_action_just_pressed("shift_up"):
+			vehicle.shift_up()
+		
+		if Input.is_action_just_pressed("shift_down"):
+			vehicle.shift_down()
 
 # Create the player vehicle wherever this player controller currently is
 func create_vehicle():

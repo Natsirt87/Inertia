@@ -1,10 +1,17 @@
-[gd_scene load_steps=7 format=3 uid="uid://xlpphold73pn"]
+[gd_scene load_steps=10 format=3 uid="uid://xlpphold73pn"]
 
 [ext_resource type="Texture2D" uid="uid://qj7wrjwk7cta" path="res://Sprites/Misc/wheel.png" id="1_aja0r"]
-[ext_resource type="Script" path="res://Scripts/Vehicle/Vehicle.gd" id="1_j4qjg"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/Physics/Vehicle.gd" id="1_b8kdd"]
 [ext_resource type="Texture2D" uid="uid://dudjudt77tuie" path="res://Sprites/Cars/RX-7/RX-7_1.png" id="2_xelaq"]
 [ext_resource type="Script" path="res://Scripts/Vehicle/Visual/VehicleSprite.gd" id="3_go11w"]
-[ext_resource type="Script" path="res://Scripts/Vehicle/Wheel.gd" id="4_0fnvn"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/Physics/Drivetrain.gd" id="4_6s27e"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/Physics/Wheel.gd" id="5_wopku"]
+[ext_resource type="Script" path="res://Scripts/Vehicle/Physics/Tire.gd" id="7_0u83b"]
+
+[sub_resource type="Curve" id="Curve_ir8uu"]
+max_value = 350.0
+_data = [Vector2(0, 131.579), 0.0, 26.8699, 0, 0, Vector2(0.237113, 168.421), 25.5261, 25.5261, 0, 0, Vector2(0.438144, 205.263), 90.093, 90.093, 0, 0, Vector2(0.623711, 243.158), 403.047, 403.047, 0, 0, Vector2(0.850515, 280), -126.13, -126.13, 0, 0, Vector2(1, 257.895), -267.419, 0.0, 0, 0]
+point_count = 6
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_karj6"]
 radius = 22.2222
@@ -15,11 +22,10 @@ mass = 1250.0
 center_of_mass_mode = 1
 gravity_scale = 0.0
 continuous_cd = 2
-script = ExtResource("1_j4qjg")
-engine_force = 6000.0
-wheelbase = 2.318
-track_width = 1.882
-cg_height = 0.15
+script = ExtResource("1_b8kdd")
+steering_speed = 0.4
+engine_torque = 2000.0
+cg_height = 0.2
 
 [node name="Body" type="CollisionPolygon2D" parent="."]
 scale = Vector2(0.42, 0.42)
@@ -33,67 +39,89 @@ rotate_speed = 3.0
 max_lat_accel = 16.0
 max_long_accel = 20.0
 
-[node name="Wheels" type="Node2D" parent="Body"]
+[node name="Drivetrain" type="Node2D" parent="Body"]
+script = ExtResource("4_6s27e")
+engine_torque_curve = SubResource("Curve_ir8uu")
+redline_rpm = 6000.0
+gear_ratios = [-2.9, 2.66, 1.78, 1.3, 1.0, 0.74, 0.5]
+final_drive = 3.42
+torque_split = -1.0
+
+[node name="Wheels" type="Node2D" parent="Body/Drivetrain"]
 z_index = -1
 
-[node name="FrontLeft" type="Area2D" parent="Body/Wheels"]
+[node name="FrontLeft" type="Area2D" parent="Body/Drivetrain/Wheels" node_paths=PackedStringArray("tire_model")]
 position = Vector2(-112, -138)
 scale = Vector2(0.72, 0.72)
-script = ExtResource("4_0fnvn")
+script = ExtResource("5_wopku")
 front = true
 left = true
 steering = true
 max_steering_angle = 20.0
-max_friction = 1.5
+tire_model = NodePath("../../Tire")
+max_friction = 1.3
+min_friction = 0.9
+radius = 0.325
 
-[node name="WheelSprite" type="Sprite2D" parent="Body/Wheels/FrontLeft"]
+[node name="WheelSprite" type="Sprite2D" parent="Body/Drivetrain/Wheels/FrontLeft"]
 texture = ExtResource("1_aja0r")
 
-[node name="Collision" type="CollisionShape2D" parent="Body/Wheels/FrontLeft"]
+[node name="Collision" type="CollisionShape2D" parent="Body/Drivetrain/Wheels/FrontLeft"]
 visible = false
 shape = SubResource("CapsuleShape2D_karj6")
 
-[node name="FrontRight" type="Area2D" parent="Body/Wheels"]
+[node name="FrontRight" type="Area2D" parent="Body/Drivetrain/Wheels" node_paths=PackedStringArray("tire_model")]
 position = Vector2(112, -138)
 scale = Vector2(0.72, 0.72)
-script = ExtResource("4_0fnvn")
+script = ExtResource("5_wopku")
 front = true
 steering = true
 max_steering_angle = 20.0
-max_friction = 1.5
+tire_model = NodePath("../../Tire")
+max_friction = 1.3
+min_friction = 0.9
+radius = 0.325
 
-[node name="WheelSprite" type="Sprite2D" parent="Body/Wheels/FrontRight"]
+[node name="WheelSprite" type="Sprite2D" parent="Body/Drivetrain/Wheels/FrontRight"]
 texture = ExtResource("1_aja0r")
 
-[node name="Collision" type="CollisionShape2D" parent="Body/Wheels/FrontRight"]
+[node name="Collision" type="CollisionShape2D" parent="Body/Drivetrain/Wheels/FrontRight"]
 visible = false
 shape = SubResource("CapsuleShape2D_karj6")
 
-[node name="BackLeft" type="Area2D" parent="Body/Wheels"]
+[node name="BackLeft" type="Area2D" parent="Body/Drivetrain/Wheels" node_paths=PackedStringArray("tire_model")]
 position = Vector2(-112, 138)
 scale = Vector2(0.72, 0.72)
-script = ExtResource("4_0fnvn")
+script = ExtResource("5_wopku")
 left = true
-torque_ratio = 0.5
-max_friction = 1.5
+tire_model = NodePath("../../Tire")
+max_friction = 1.3
+min_friction = 0.9
+radius = 0.325
 
-[node name="WheelSprite" type="Sprite2D" parent="Body/Wheels/BackLeft"]
+[node name="WheelSprite" type="Sprite2D" parent="Body/Drivetrain/Wheels/BackLeft"]
 texture = ExtResource("1_aja0r")
 
-[node name="Collision" type="CollisionShape2D" parent="Body/Wheels/BackLeft"]
+[node name="Collision" type="CollisionShape2D" parent="Body/Drivetrain/Wheels/BackLeft"]
 visible = false
 shape = SubResource("CapsuleShape2D_karj6")
 
-[node name="BackRight" type="Area2D" parent="Body/Wheels"]
+[node name="BackRight" type="Area2D" parent="Body/Drivetrain/Wheels" node_paths=PackedStringArray("tire_model")]
 position = Vector2(112, 138)
 scale = Vector2(0.72, 0.72)
-script = ExtResource("4_0fnvn")
-torque_ratio = 0.5
-max_friction = 1.5
+script = ExtResource("5_wopku")
+tire_model = NodePath("../../Tire")
+max_friction = 1.3
+min_friction = 0.9
+radius = 0.325
 
-[node name="WheelSprite" type="Sprite2D" parent="Body/Wheels/BackRight"]
+[node name="WheelSprite" type="Sprite2D" parent="Body/Drivetrain/Wheels/BackRight"]
 texture = ExtResource("1_aja0r")
 
-[node name="Collision" type="CollisionShape2D" parent="Body/Wheels/BackRight"]
+[node name="Collision" type="CollisionShape2D" parent="Body/Drivetrain/Wheels/BackRight"]
 visible = false
 shape = SubResource("CapsuleShape2D_karj6")
+
+[node name="Tire" type="Node2D" parent="Body/Drivetrain"]
+script = ExtResource("7_0u83b")
+tire_config = "res://Config/Tires/StandardTire.cfg"

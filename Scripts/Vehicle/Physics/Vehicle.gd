@@ -94,9 +94,9 @@ func _determine_oversteer():
 	var rear: Wheel = _rear_wheels[0] if steer_dir > 0 else _rear_wheels[0]
 	
 	# If the rear outside tire's slip angle is exceeding the max, the car is oversteering
-	oversteering = true if abs(rear.slip_angle) > (rear.peak_slip_angle) else false
+	oversteering = true if abs(rear.slip_angle) > (rear.tire_model.peak_slip_angle) else false
 	rear_slip_angle = rear.slip_angle
-	rear_peak_slip = rear.peak_slip_angle
+	rear_peak_slip = rear.tire_model.peak_slip_angle
 
 func set_throttle_input(input: float):
 	_drivetrain.set_throttle_input(input)
