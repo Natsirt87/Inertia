@@ -1,7 +1,7 @@
 extends Node
 
 var steering_speed: float = 0.5
-var oversteer_prevention: bool = false
+var oversteer_prevention: bool = true
 
 # Called when the node enters the scene tree for the first time.
 func _ready():

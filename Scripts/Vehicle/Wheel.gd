@@ -22,7 +22,7 @@ var STEERING_DERIVATIVE: float = 0.1
 @export var traction_falloff: float = 2 # How quickly traction falls of, higher number = slower
 @export var traction_constant: float = 0.1666 # How much force is generated for slip ratio
 @export var peak_tire_slip: float = 3 # How much force is generated for slip angle
-@export var peak_slip_ratio: float = 1 # Slip ratio value for peak generated grip
+@export var peak_slip_ratio: float = 0.5 # Slip ratio value for peak generated grip
 
 
 # Public variables 
@@ -74,6 +74,7 @@ func _physics_process(delta):
 	_wheel_offset = global_position - _vehicle.global_position
 	
 	_desired_force = Vector2(0, 0)
+	_total_torque = 0
 	
 	tire_load = _get_tire_load() # Total load (weight) pushing on the tire
 	var max_force = max_friction * tire_load # Maximum possible force the tire could exert
@@ -100,11 +101,13 @@ func _physics_process(delta):
 		_friction_coefficient = max_friction
 		applied_force = _desired_force
 	
-#	var long_force = applied_force.dot(_forward)
-#	var traction_torque = long_force * radius
-#	_total_torque -= traction_torque
-#
-#	_update_angular_velocity(delta)
+	# Apply the traction torque to the wheel (torque from road on tire, opposing rotation)
+	var long_force = applied_force.dot(_forward)
+	var traction_torque = long_force * radius
+	_total_torque -= traction_torque
+	
+	# Update angular velocity of the wheel based on torque
+	_update_angular_velocity(delta)
 
 	# Apply the net wheel force to the vehicle
 	_vehicle.apply_wheel_force(applied_force, _wheel_offset)
@@ -161,11 +164,9 @@ func _steer(delta):
 		if abs(target_slip_angle) > abs(slip_angle):
 			target_slip_angle = lerp(slip_angle, target_slip_angle, steering_speed)
 		
-		var rear_slip_sub = _vehicle.oversteer_prevention if Settings.oversteer_prevention else -0.1
-		
 		# If the current wheel is sliding or rears are not about to slide, get max angle out of this wheel
 		var cur_slip
-		if abs(slip_angle) >= max_slip or _vehicle.rear_slip_angle < max_slip - rear_slip_sub:
+		if abs(slip_angle) >= max_slip or _vehicle.rear_slip_angle < max_slip - _vehicle.oversteer_prevention:
 			cur_slip = slip_angle
 		# If rears are at the limit and this wheel isn't sliding, get max angle out of the rears (prevent oversteer)
 		else:
@@ -174,15 +175,16 @@ func _steer(delta):
 		if abs(_steering_input) < 0.01:
 			steering_angle = lerp(steering_angle, 0.0, steering_speed * CENTERING_SPEED)
 		else:
-			steering_angle += _pd_controller(STEERING_FORCE * delta, STEERING_DERIVATIVE * delta, 
-											target_slip_angle, slip_angle, _last_slip_angle, delta)
+			var error = target_slip_angle - slip_angle
+			var diff = (cur_slip - _last_slip_angle) / delta
+			var pd = _pd_controller(STEERING_FORCE, STEERING_DERIVATIVE, error, diff)
+			steering_angle += pd * delta
 			_last_slip_angle = cur_slip
 		
 	rotation_degrees = clamp(steering_angle, -max_steering_angle, max_steering_angle)
 
-func _pd_controller(p_gain: float, d_gain: float, target: float, cur: float, last: float, delta):
-	var p = p_gain * (target - cur)
-	var diff = (cur - last) / delta
+func _pd_controller(p_gain: float, d_gain: float, error: float, diff: float):
+	var p = p_gain * error
 	var d = d_gain * -diff
 	
 	return p + d
@@ -204,35 +206,15 @@ func _lateral_forces(max_force, delta):
 
 # Compute drive force acting through the tire
 func _longitudinal_forces(max_force, delta):
-	# simple temporary approximation of driven wheel force
-	var max_drive_force = torque_ratio * _vehicle.engine_force
-	var drive_force = _forward * _throttle_input * max_drive_force
+	var v_long = _linear_velocity.dot(_forward)
+	var slip_ratio = ((_angular_velocity * radius) - v_long) / max(abs(v_long), 0.001)
 
-	_desired_force += drive_force
-	
-	var remaining_force = clamp(max_force - _desired_force.length(), 0, max_force)
-	var max_braking_force = remaining_force * 0.99
-	var brake_force_magnitude = _brake_input * max_braking_force
-	var brake_force = -_linear_velocity.normalized() * brake_force_magnitude
+	var long_force = slip_ratio / peak_slip_ratio * max_force
+	_desired_force += long_force * _forward
 
-	_desired_force += brake_force
-
-#	var v_long = _linear_velocity.dot(_forward)
-#	var slip_ratio = ((_angular_velocity * radius) - v_long) - max(abs(v_long), 0.01)
-#
-#	var long_force = slip_ratio / peak_slip_ratio * 300
-#	long_force = min(long_force, max_force)
-#	_desired_force += long_force * _forward
-#
-#	var traction_torque = long_force * radius
-#
-#	var drive_torque = _vehicle.engine_force * radius * _throttle_input * torque_ratio
-#	var brake_torque = -_vehicle.engine_force * radius * _brake_input * sign(_angular_velocity)
-#	_total_torque += drive_torque + brake_torque - traction_torque
-#
-#	_update_angular_velocity(delta)
-#
-#	print(name + ": " + str(slip_ratio))
+	var drive_torque = _vehicle.engine_force * radius * _throttle_input * torque_ratio
+	var brake_torque = -_vehicle.engine_force * radius * _brake_input * sign(_angular_velocity)
+	_total_torque += drive_torque + brake_torque
 
 func _update_angular_velocity(delta):
 	var inertia = mass * radius * radius / 2
